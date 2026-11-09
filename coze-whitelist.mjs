@@ -28,6 +28,8 @@
  *   node coze-whitelist.mjs add --preset js|python|infra|recommended
  *   node coze-whitelist.mjs remove <command> [command...]
  *   node coze-whitelist.mjs collect    (record newly whitelisted commands, push to GitHub)
+ *   node coze-whitelist.mjs full-access on|off   (device master switch: no approval cards at all)
+ *   node coze-whitelist.mjs tool-auth on|off     (per-claw tool authorization: always allow)
  *
  * Options:
  *   --port <n>          CDP debug port (default 9222)
@@ -372,6 +374,38 @@ async function removeCommands(commands) {
 // collect: record newly whitelisted commands (e.g. user clicked 始终允许 on a
 // popup) into collected-commands.json, then commit + push. Runs unattended.
 // ---------------------------------------------------------------------------
+const CLAW_INFO_CACHE_TTL_MS = 60000;
+let clawInfoCache = null;
+
+async function resolveClawId() {
+  if (clawInfoCache && Date.now() - clawInfoCache.at < CLAW_INFO_CACHE_TTL_MS) return clawInfoCache.id;
+  const j = await apiPost('/api/coze_claw/claw/info', {});
+  if (j.code !== 0) die(`claw/info failed: ${j.code} ${j.msg || ''}`);
+  const id = j.data?.user_claw_info?.claw_id;
+  if (!id) die('claw_id not found in claw/info response');
+  clawInfoCache = { id: String(id), at: Date.now() };
+  return clawInfoCache.id;
+}
+
+async function setFullAccess(on) {
+  const status = on ? 2 : 1;
+  const j = await apiPost('/api/coze_claw/desktop/full_access/update', { device_id: DEVICE_ID, status });
+  if (j.code !== 0) die(`full_access update failed: ${j.code} ${j.msg || ''}`);
+  console.log(`device full access: ${on ? 'ON' : 'OFF'} (status=${status})`);
+  console.log(on ? 'agents will no longer ask before ANY local operation (including file writes and commands).'
+                 : 'approval cards return for non-whitelisted operations.');
+}
+
+async function setToolAuth(on) {
+  const status = on ? 2 : 1;
+  const clawId = await resolveClawId();
+  for (const agentType of [1, 2]) {
+    const j = await apiPost('/api/coze_claw/desktop/update_agent_tool_auth', { claw_id: clawId, status, agent_type: agentType, device_id: DEVICE_ID });
+    if (j.code !== 0) die(`tool auth update failed (agent_type=${agentType}): ${j.code} ${j.msg || ''}`);
+    console.log(`tool auth (agent_type=${agentType}): ${on ? 'ALWAYS_ALLOW' : 'ASK_WHEN_USE'}`);
+  }
+}
+
 async function collectCommands() {
   const rules = await listRules();
   const current = [...new Set(rules.map(r => rulePrefix(r).trim()).filter(Boolean))].sort();
@@ -482,6 +516,30 @@ async function main() {
       }
       break;
     }
+    case 'full-access': {
+      const on = String(opts._[1] || '').toLowerCase();
+      if (on !== 'on' && on !== 'off') die('usage: full-access on|off');
+      const { managed } = await ensureDebugApp();
+      try {
+        SESSION = await getSession();
+        await setFullAccess(on === 'on');
+      } finally {
+        await restoreApp(managed);
+      }
+      break;
+    }
+    case 'tool-auth': {
+      const on = String(opts._[1] || '').toLowerCase();
+      if (on !== 'on' && on !== 'off') die('usage: tool-auth on|off');
+      const { managed } = await ensureDebugApp();
+      try {
+        SESSION = await getSession();
+        await setToolAuth(on === 'on');
+      } finally {
+        await restoreApp(managed);
+      }
+      break;
+    }
     case 'help':
     case '--help':
     case '-h':
@@ -491,6 +549,8 @@ async function main() {
   node coze-whitelist.mjs add <command...> | --preset js|python|infra|recommended
   node coze-whitelist.mjs remove <command...>
   node coze-whitelist.mjs collect   # record new whitelist entries + push to GitHub
+  node coze-whitelist.mjs full-access on|off   # device master switch for all approval cards
+  node coze-whitelist.mjs tool-auth on|off     # tool authorization: always allow vs ask
 
 Options: --port --api-base --device-id --app-name --no-manage --yes --json`);
       break;

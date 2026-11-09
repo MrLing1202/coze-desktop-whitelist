@@ -1,6 +1,6 @@
 {
   "name": "coze-desktop-whitelist",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Bulk-manage the shell-command always-allow whitelist of Coze Desktop (扣子桌面版) — stop per-command approval popups.",
   "type": "module",
   "bin": {

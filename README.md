@@ -22,6 +22,8 @@
 | 看看哪些命令已经不用弹窗 | `node coze-whitelist.mjs list` |
 | 补一条命令进白名单 | `node coze-whitelist.mjs add 命令名` |
 | 把某条命令改回"要弹窗" | `node coze-whitelist.mjs remove 命令名` |
+| **彻底关闭所有确认弹窗（总闸）** | `node coze-whitelist.mjs full-access on` |
+| **工具授权免询问** | `node coze-whitelist.mjs tool-auth on` |
 | 自动收集新放行的命令并推送更新 | `node coze-whitelist.mjs collect` |
 
 > 运行时扣子会自己关掉再打开一次（大概十几秒），不用管它，属于正常现象。
@@ -75,6 +77,8 @@
 - 目前只支持 Mac；扣子国际版（App 名叫 Coze）可用 `--app-name Coze` 尝试
 - 扣子正在跑任务时先别运行本工具，等任务跑完再用
 - `collect` 会把你白名单里新出现的命令记进 `collected-commands.json` 并自动提交推送到本仓库，适合配合定时任务做无人值守收集
+- `full-access on` 是最彻底的免打扰开关（所有操作不再确认，包括删文件）；反悔就用 `full-access off` 恢复
+- 本机/云端是**每个任务创建时选的**（新建任务界面的运行位置选择器）：本机模式走你电脑本地运行时，天然没有授权卡片；弹窗基本只出现在云端会话里
 
 <details>
 <summary><b>⚙️ 高级选项（一般用不到，点开看）</b></summary>
