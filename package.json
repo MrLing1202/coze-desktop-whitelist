@@ -1,0 +1,15 @@
+{
+  "name": "coze-desktop-whitelist",
+  "version": "1.0.0",
+  "description": "Bulk-manage the shell-command always-allow whitelist of Coze Desktop (扣子桌面版) — stop per-command approval popups.",
+  "type": "module",
+  "bin": {
+    "coze-whitelist": "./coze-whitelist.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "keywords": ["coze", "coze-desktop", "扣子", "whitelist", "shell", "electron", "cdp"],
+  "license": "MIT",
+  "private": false
+}
