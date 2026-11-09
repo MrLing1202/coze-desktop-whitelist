@@ -70,7 +70,10 @@ const PRESETS = {
     'sqlite3', 'psql', 'mysql', 'redis-cli', 'mongosh', 'ffmpeg', 'ffprobe',
     'convert', 'magick', 'curl', 'wget', 'ping', 'dig', 'nslookup', 'host', 'nc',
     'netstat', 'ifconfig', 'caffeinate', 'tmux', 'screen', 'watch', 'time',
-    'timeout', 'nohup', 'yq', 'gh', 'xcodebuild', 'xcrun', 'pod'
+    'timeout', 'nohup', 'yq', 'gh', 'xcodebuild', 'xcrun', 'pod',
+    // macOS dev tools
+    'sips', 'textutil', 'plutil', 'xattr', 'codesign', 'ditto', 'mdls',
+    'system_profiler', 'ioreg'
   ]
 };
 
