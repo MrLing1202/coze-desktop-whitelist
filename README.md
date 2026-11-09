@@ -22,6 +22,7 @@
 | 看看哪些命令已经不用弹窗 | `node coze-whitelist.mjs list` |
 | 补一条命令进白名单 | `node coze-whitelist.mjs add 命令名` |
 | 把某条命令改回"要弹窗" | `node coze-whitelist.mjs remove 命令名` |
+| 自动收集新放行的命令并推送更新 | `node coze-whitelist.mjs collect` |
 
 > 运行时扣子会自己关掉再打开一次（大概十几秒），不用管它，属于正常现象。
 
@@ -73,6 +74,7 @@
 - 工具用的是扣子的内部接口，官方一升级可能失效，失效了回来这里看新版本
 - 目前只支持 Mac；扣子国际版（App 名叫 Coze）可用 `--app-name Coze` 尝试
 - 扣子正在跑任务时先别运行本工具，等任务跑完再用
+- `collect` 会把你白名单里新出现的命令记进 `collected-commands.json` 并自动提交推送到本仓库，适合配合定时任务做无人值守收集
 
 <details>
 <summary><b>⚙️ 高级选项（一般用不到，点开看）</b></summary>

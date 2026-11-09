@@ -27,6 +27,7 @@
  *   node coze-whitelist.mjs add <command> [command...]
  *   node coze-whitelist.mjs add --preset js|python|infra|recommended
  *   node coze-whitelist.mjs remove <command> [command...]
+ *   node coze-whitelist.mjs collect    (record newly whitelisted commands, push to GitHub)
  *
  * Options:
  *   --port <n>          CDP debug port (default 9222)
@@ -40,10 +41,11 @@
  *   --json              Machine-readable output for `list`
  */
 
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { homedir, platform } from 'node:os';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 // ---------------------------------------------------------------------------
 // Curated presets (deliberately exclude high-risk commands; see HIGH_RISK)
@@ -84,6 +86,9 @@ const HIGH_RISK = new Set([
   'dd', 'mkfs', 'diskutil', 'shutdown', 'reboot', 'nvram', 'pmset', 'security',
   'spctl', 'csrutil', 'bash', 'sh', 'zsh', 'fish'
 ]);
+
+// Where `collect` records the server whitelist baseline and newly seen commands.
+const STATE_FILE = join(dirname(fileURLToPath(import.meta.url)), 'collected-commands.json');
 
 // ---------------------------------------------------------------------------
 // Tiny argv parser: --flag value | --flag=value | --bool
@@ -293,7 +298,6 @@ function apiHeaders(session) {
 // Whitelist API
 // ---------------------------------------------------------------------------
 let DEVICE_ID; // resolved once in main()
-
 async function apiGet(path) {
   const r = await fetch(`${API_BASE}${path}`, { headers: apiHeaders(SESSION) });
   if (!r.ok) die(`GET ${path}: HTTP ${r.status}`);
@@ -365,6 +369,54 @@ async function removeCommands(commands) {
 }
 
 // ---------------------------------------------------------------------------
+// collect: record newly whitelisted commands (e.g. user clicked 始终允许 on a
+// popup) into collected-commands.json, then commit + push. Runs unattended.
+// ---------------------------------------------------------------------------
+async function collectCommands() {
+  const rules = await listRules();
+  const current = [...new Set(rules.map(r => rulePrefix(r).trim()).filter(Boolean))].sort();
+  let state = {};
+  try { state = JSON.parse(readFileSync(STATE_FILE, 'utf-8')); } catch { /* first run */ }
+  const git = (...args) => execFileSync('git', args, { cwd: dirname(STATE_FILE), stdio: 'pipe' }).toString().trim();
+
+  let fresh = [];
+  if (!Array.isArray(state.known) || state.known.length === 0) {
+    // first run: seed the baseline without marking anything as collected
+    state = { updated: new Date().toISOString(), known: current, collected: [] };
+    log(`baseline seeded: ${current.length} known command(s)`);
+  } else {
+    const known = new Set(state.known);
+    const collected = new Set(state.collected || []);
+    fresh = current.filter(c => !known.has(c));
+    fresh.forEach(c => { known.add(c); collected.add(c); });
+    if (!fresh.length) {
+      log('no new commands since last collect');
+      return;
+    }
+    log(`collected ${fresh.length} new command(s): ${fresh.join(', ')}`);
+  }
+  state.updated = new Date().toISOString();
+  state.known = [...new Set([...(state.known || []), ...current])].sort();
+  writeFileSync(STATE_FILE, JSON.stringify(state, null, 2) + '\n');
+
+  // best-effort git commit + push (works unattended; never fatal)
+  try {
+    git('add', 'collected-commands.json');
+    const head = fresh.length ? fresh.slice(0, 8).join(', ') + (fresh.length > 8 ? ', ...' : '') : 'baseline';
+    git('commit', '-m', `collect: ${fresh.length ? `+${fresh.length} (${head})` : 'baseline seed'} [${(state.known || []).length} known]`);
+  } catch (e) {
+    log('git commit skipped: ' + String(e.message).split('\n')[0]);
+    return;
+  }
+  try {
+    git('-c', 'http.lowSpeedLimit=1', '-c', 'http.lowSpeedTime=15', 'push', 'origin', 'HEAD');
+    log('pushed to GitHub');
+  } catch {
+    log('committed locally; push failed (network?) — run `git push origin HEAD` later');
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 let SESSION;
@@ -420,6 +472,16 @@ async function main() {
       }
       break;
     }
+    case 'collect': {
+      const { managed } = await ensureDebugApp();
+      try {
+        SESSION = await getSession();
+        await collectCommands();
+      } finally {
+        await restoreApp(managed);
+      }
+      break;
+    }
     case 'help':
     case '--help':
     case '-h':
@@ -428,6 +490,7 @@ async function main() {
   node coze-whitelist.mjs list [--json]
   node coze-whitelist.mjs add <command...> | --preset js|python|infra|recommended
   node coze-whitelist.mjs remove <command...>
+  node coze-whitelist.mjs collect   # record new whitelist entries + push to GitHub
 
 Options: --port --api-base --device-id --app-name --no-manage --yes --json`);
       break;
